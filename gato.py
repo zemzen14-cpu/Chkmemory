@@ -22,7 +22,7 @@ WATERMARK = "✨ @oscuridad10"
 
 # ================== CONFIGURACIÓN WEBHOOK ==================
 PORT = int(os.environ.get("PORT", 8080))
-WEBHOOK_URL = os.environ.get("WEBHOOK_URL")  # Ej: https://tudominio.onrender.com
+WEBHOOK_URL = os.environ.get("https://chkmemory.onrender.com")  # Ej: https://tudominio.onrender.com
 
 # ================== LOGGING ==================
 logging.basicConfig(
