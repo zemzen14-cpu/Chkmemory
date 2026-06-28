@@ -8,7 +8,7 @@ services:
       - key: TELEGRAM_TOKEN
         value: 8945828877:AAFNznpCroIeQblmaw7HVSqjFOlDB2e8Ugs
       - key: WEBHOOK_URL
-        value: https://chkmemory.onrender.com
+        value: https://tunombre.onrender.com
       - key: PORT
         value: 8080
       - key: TZ
