@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-🎬 NETFLIX NFToken BOT - Versión Flask Webhook
+🎬 NETFLIX NFToken BOT - Generador de Links de Acceso (Webhook + Polling)
 """
 
 import os
@@ -22,7 +22,7 @@ WATERMARK = "✨ @oscuridad10"
 
 # ================== CONFIGURACIÓN WEBHOOK ==================
 PORT = int(os.environ.get("PORT", 8080))
-WEBHOOK_URL = os.environ.get("https://chkmemory.onrender.com")  # Ej: https://tudominio.onrender.com
+WEBHOOK_URL = os.environ.get("WEBHOOK_URL")  # Ej: https://chkmemory.onrender.com
 
 # ================== LOGGING ==================
 logging.basicConfig(
@@ -542,6 +542,26 @@ class NetflixBot:
             parse_mode='HTML'
         )
 
+    def run_polling(self):
+        """Ejecuta el bot con Polling"""
+        print("🎬 Iniciando Netflix NFToken Bot v7.1 (Polling)...")
+        print(f"📡 Token: {self.token[:10]}...")
+        print("📌 Solo responde en privado.")
+        print("💾 Sin archivos locales - Todo en memoria")
+        print("📏 Validación por tamaño de token activada")
+        print("   ✅ CORTO (≤ 350) = Cookie Válida")
+        print("   ❌ LARGO (> 350) = Cookie Inválida")
+        print("✅ Bot listo!\n")
+
+        self.app = ApplicationBuilder().token(self.token).build()
+        self.app.add_handler(CommandHandler("start", self.start))
+        self.app.add_handler(CommandHandler("howto", self.howto_command))
+        self.app.add_handler(MessageHandler(filters.Document.ALL & ~filters.COMMAND, self.file_handler))
+        self.app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.unknown))
+        self.app.add_handler(CallbackQueryHandler(self.handle_callback))
+        
+        self.app.run_polling()
+
 # ================== FLASK APP ==================
 
 app = Flask(__name__)
@@ -553,11 +573,9 @@ def index():
 
 @app.route(f'/{TOKEN}', methods=['POST'])
 def webhook():
-    """Endpoint para recibir actualizaciones de Telegram"""
     try:
         if bot_instance and bot_instance.app:
             update = Update.de_json(request.get_json(force=True), bot_instance.app.bot)
-            # Ejecutar el update de forma síncrona
             asyncio.run(bot_instance.app.process_update(update))
             return "OK", 200
         return "Bot no inicializado", 500
@@ -577,10 +595,7 @@ def main():
         print(f"📌 Puerto: {PORT}")
         print("✅ Bot listo!\n")
         
-        # Inicializar el bot
         bot_instance = NetflixBot(TOKEN)
-        
-        # Construir la aplicación del bot
         bot_instance.app = ApplicationBuilder().token(TOKEN).build()
         bot_instance.app.add_handler(CommandHandler("start", bot_instance.start))
         bot_instance.app.add_handler(CommandHandler("howto", bot_instance.howto_command))
@@ -588,20 +603,16 @@ def main():
         bot_instance.app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, bot_instance.unknown))
         bot_instance.app.add_handler(CallbackQueryHandler(bot_instance.handle_callback))
         
-        # Inicializar el bot (para que tenga el bot object)
         bot_instance.app.initialize()
-        
-        # Configurar webhook en Telegram
         webhook_url = f"{WEBHOOK_URL}/{TOKEN}"
         bot_instance.app.bot.set_webhook(url=webhook_url)
         print(f"✅ Webhook configurado: {webhook_url}")
         
-        # Ejecutar Flask
         app.run(host="0.0.0.0", port=PORT)
     else:
-        print("⚠️ WEBHOOK_URL no configurada, no se puede iniciar.")
-        print("Configura la variable WEBHOOK_URL en Render.")
-        print("Ejemplo: WEBHOOK_URL=https://tunombre.onrender.com")
+        print("⚠️ WEBHOOK_URL no configurada, usando POLLING...")
+        bot = NetflixBot(TOKEN)
+        bot.run_polling()
 
 if __name__ == "__main__":
     try:
