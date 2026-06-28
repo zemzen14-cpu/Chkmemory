@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-🎬 NETFLIX NFToken BOT - Generador de Links de Acceso (Webhook)
+🎬 NETFLIX NFToken BOT - Generador de Links de Acceso (Webhook + Polling)
 """
 
 import os
@@ -553,6 +553,28 @@ class NetflixBot:
             parse_mode='HTML'
         )
 
+    # ========== RUN CON POLLING (Original) ==========
+    def run_polling(self):
+        """Ejecuta el bot con Polling (original)"""
+        print("🎬 Iniciando Netflix NFToken Bot v7.1 (Polling)...")
+        print(f"📡 Token: {self.token[:10]}...")
+        print("📌 Solo responde en privado.")
+        print("💾 Sin archivos locales - Todo en memoria")
+        print("📏 Validación por tamaño de token activada")
+        print("   ✅ CORTO (≤ 350) = Cookie Válida")
+        print("   ❌ LARGO (> 350) = Cookie Inválida")
+        print("✅ Bot listo!\n")
+
+        self.app = ApplicationBuilder().token(self.token).build()
+
+        self.app.add_handler(CommandHandler("start", self.start))
+        self.app.add_handler(CommandHandler("howto", self.howto_command))
+        self.app.add_handler(MessageHandler(filters.Document.ALL & ~filters.COMMAND, self.file_handler))
+        self.app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.unknown))
+        self.app.add_handler(CallbackQueryHandler(self.handle_callback))
+
+        self.app.run_polling()
+
     # ========== RUN CON WEBHOOK ==========
     def run_webhook(self):
         """Ejecuta el bot con Webhook"""
@@ -591,40 +613,18 @@ class NetflixBot:
             drop_pending_updates=True
         )
 
-# ================== FLASK (Alternativa) ==================
-app = Flask(__name__)
-bot_instance = None
-
-@app.route('/')
-def index():
-    return "🎬 Netflix NFToken Bot está funcionando!"
-
-@app.route(f'/{TOKEN}', methods=['POST'])
-async def webhook():
-    """Endpoint para recibir actualizaciones de Telegram"""
-    try:
-        if bot_instance and bot_instance.app:
-            update = Update.de_json(request.get_json(force=True), bot_instance.app.bot)
-            await bot_instance.app.process_update(update)
-            return "OK", 200
-        return "Bot no inicializado", 500
-    except Exception as e:
-        log.error(f"Error en webhook: {e}")
-        return "Error", 500
-
 # ================== MAIN ==================
 
 def main():
-    global bot_instance
-    bot_instance = NetflixBot(TOKEN)
+    bot = NetflixBot(TOKEN)
     
     # Si WEBHOOK_URL está configurada, usar webhook
     if WEBHOOK_URL:
-        bot_instance.run_webhook()
+        bot.run_webhook()
     else:
-        # Si no, usar polling (fallback)
+        # Si no, usar polling
         print("⚠️ WEBHOOK_URL no configurada, usando polling...")
-        bot_instance.run()
+        bot.run_polling()
 
 if __name__ == "__main__":
     try:
