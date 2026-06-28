@@ -3,7 +3,7 @@ services:
     name: netflix-nftoken-bot
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: python bot.py
+    startCommand: python gato.py
     envVars:
       - key: TELEGRAM_TOKEN
         value: 8945828877:AAFNznpCroIeQblmaw7HVSqjFOlDB2e8Ugs
