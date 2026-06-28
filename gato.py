@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-🎬 NETFLIX NFToken BOT - Generador de Links de Acceso
+🎬 NETFLIX NFToken BOT - Generador de Links de Acceso (Webhook)
 """
 
 import os
@@ -11,12 +11,17 @@ import logging
 import requests
 import urllib.parse
 from datetime import datetime
+from flask import Flask, request
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
 
 # ================== CONFIGURACIÓN ==================
 TOKEN = "8945828877:AAFNznpCroIeQblmaw7HVSqjFOlDB2e8Ugs"
 WATERMARK = "✨ @oscuridad10"
+
+# ================== CONFIGURACIÓN WEBHOOK ==================
+PORT = int(os.environ.get("PORT", 8080))
+WEBHOOK_URL = os.environ.get("WEBHOOK_URL")  # Ej: https://tudominio.onrender.com
 
 # ================== LOGGING ==================
 logging.basicConfig(
@@ -168,23 +173,13 @@ def get_cookie_string(cookie_dict):
     return "; ".join(cookie_parts) if cookie_parts else None
 
 def is_token_valid(token):
-    """
-    Valida el token por tamaño:
-    - VÁLIDO: token CORTO (< 350 caracteres)
-    - INVÁLIDO: token LARGO (> 350 caracteres)
-    """
     if not token:
         return False
-    
-    # Limpiar el token (eliminar caracteres no válidos)
     clean = re.sub(r'[^A-Za-z0-9+/=_-]', '', token)
-    
-    # CRITERIO: VÁLIDO si es CORTO (< 350 caracteres)
-    # INVÁLIDO si es LARGO (> 350 caracteres)
     if len(clean) < 350:
-        return True  # CORTO = VÁLIDO ✅
+        return True
     else:
-        return False  # LARGO = INVÁLIDO ❌
+        return False
 
 def fetch_nftoken(cookie_dict):
     netflix_id = cookie_dict.get(REQUIRED_COOKIE)
@@ -381,12 +376,8 @@ class NetflixBot:
             try:
                 token, expires = fetch_nftoken(cookie_dict)
                 
-                # VALIDAR TOKEN POR TAMAÑO
                 token_valid = is_token_valid(token)
-                
-                # Limpiar token para mostrar
                 clean_token = re.sub(r'[^A-Za-z0-9+/=_-]', '', token)
-                
                 link = build_nftoken_link(token)
 
                 cookies_found = []
@@ -396,7 +387,6 @@ class NetflixBot:
                         cookies_found.append(f"▫️ <code>{key}</code>: {value}")
 
                 if token_valid:
-                    # TOKEN CORTO = VÁLIDO ✅
                     await processing_msg.edit_text(
                         f"╔═══════════════════════════════════════╗\n"
                         f"║  ✅ <b>COOKIE VÁLIDA</b> 🎉  ║\n"
@@ -423,7 +413,6 @@ class NetflixBot:
                     )
                     
                 else:
-                    # TOKEN LARGO = INVÁLIDO ❌
                     await processing_msg.edit_text(
                         f"╔═══════════════════════════════════════╗\n"
                         f"║  ❌ <b>COOKIE INVALIDA</b>  ║\n"
@@ -564,32 +553,78 @@ class NetflixBot:
             parse_mode='HTML'
         )
 
-    def run(self):
-        print("🎬 Iniciando Netflix NFToken Bot v7.1...")
+    # ========== RUN CON WEBHOOK ==========
+    def run_webhook(self):
+        """Ejecuta el bot con Webhook"""
+        if not WEBHOOK_URL:
+            log.error("❌ WEBHOOK_URL no configurada")
+            print("❌ Configura la variable WEBHOOK_URL")
+            print("Ejemplo: WEBHOOK_URL=https://tudominio.onrender.com")
+            return
+
+        print("🎬 Iniciando Netflix NFToken Bot v7.1 (Webhook)...")
         print(f"📡 Token: {self.token[:10]}...")
-        print("📌 Solo responde en privado.")
-        print("💾 Sin archivos locales - Todo en memoria")
-        print("📏 Validación por tamaño de token activada")
-        print("   ✅ CORTO (≤ 350) = Cookie Válida")
-        print("   ❌ LARGO (> 350) = Cookie Inválida")
+        print(f"🌐 Webhook URL: {WEBHOOK_URL}")
+        print(f"📌 Puerto: {PORT}")
         print("✅ Bot listo!\n")
 
         self.app = ApplicationBuilder().token(self.token).build()
 
         self.app.add_handler(CommandHandler("start", self.start))
         self.app.add_handler(CommandHandler("howto", self.howto_command))
-
         self.app.add_handler(MessageHandler(filters.Document.ALL & ~filters.COMMAND, self.file_handler))
         self.app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.unknown))
         self.app.add_handler(CallbackQueryHandler(self.handle_callback))
 
-        self.app.run_polling()
+        # Configurar webhook
+        webhook_path = f"/{self.token}"
+        webhook_url = f"{WEBHOOK_URL}{webhook_path}"
+        
+        log.info(f"Configurando webhook: {webhook_url}")
+        
+        # Iniciar con webhook
+        self.app.run_webhook(
+            listen="0.0.0.0",
+            port=PORT,
+            url_path=webhook_path,
+            webhook_url=webhook_url,
+            drop_pending_updates=True
+        )
+
+# ================== FLASK (Alternativa) ==================
+app = Flask(__name__)
+bot_instance = None
+
+@app.route('/')
+def index():
+    return "🎬 Netflix NFToken Bot está funcionando!"
+
+@app.route(f'/{TOKEN}', methods=['POST'])
+async def webhook():
+    """Endpoint para recibir actualizaciones de Telegram"""
+    try:
+        if bot_instance and bot_instance.app:
+            update = Update.de_json(request.get_json(force=True), bot_instance.app.bot)
+            await bot_instance.app.process_update(update)
+            return "OK", 200
+        return "Bot no inicializado", 500
+    except Exception as e:
+        log.error(f"Error en webhook: {e}")
+        return "Error", 500
 
 # ================== MAIN ==================
 
 def main():
-    bot = NetflixBot(TOKEN)
-    bot.run()
+    global bot_instance
+    bot_instance = NetflixBot(TOKEN)
+    
+    # Si WEBHOOK_URL está configurada, usar webhook
+    if WEBHOOK_URL:
+        bot_instance.run_webhook()
+    else:
+        # Si no, usar polling (fallback)
+        print("⚠️ WEBHOOK_URL no configurada, usando polling...")
+        bot_instance.run()
 
 if __name__ == "__main__":
     try:
